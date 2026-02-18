@@ -31,6 +31,7 @@ def to_native(x):
     return x
 
 
+# Train models on startup
 print("Training ML models on startup...")
 models = train_all_models()
 print("Models trained successfully!")
@@ -73,7 +74,6 @@ def add_rental():
         global models
         models = train_all_models()
 
-        # ✅ JSON-safe response
         response = {
             "message": "saved",
             "rental_id": int(new_record.get("RentalID")) if new_record.get("RentalID") is not None else None
@@ -101,7 +101,7 @@ def predict_daily_route():
         vehicle_type = data.get("vehicle_type", "All")
         preds = predict_daily(data["date"], vehicle_type)
 
-        # optional demo confidence (simple)
+        # demo confidence
         preds["confidence"] = 85
 
         return jsonify(to_native(preds)), 200
@@ -135,35 +135,49 @@ def predict_monthly_route():
 
 @app.route("/models/info", methods=["GET"])
 def models_info():
+    """
+    Returns model metrics for dashboard.
+    - linear_reg, svm_classifier, decision_tree => normal dict
+    - logistic_reg, knn_reg => dict by vehicle type {All, Bike, Car, Tuk Tuk}
+      For metrics table, we show ONLY "All".
+    """
     try:
         info = {}
 
         for model_name, model_data in models.items():
 
             if not model_data:
+                info[model_name] = {"status": "not available", "metrics": {}}
+                continue
+
+            # dict-by-type models
+            if model_name in ["logistic_reg", "knn_reg"] and isinstance(model_data, dict):
+                if "All" in model_data and isinstance(model_data["All"], dict):
+                    chosen = model_data["All"]
+                else:
+                    first_key = next(iter(model_data.keys()))
+                    chosen = model_data[first_key] if isinstance(model_data[first_key], dict) else {}
+
+                clean_metrics = {k: v for k, v in chosen.items() if k not in ["model", "le_vehicle"]}
                 info[model_name] = {
-                    "status": "not available",
-                    "metrics": {}
+                    "status": chosen.get("status", "unknown"),
+                    "metrics": to_native(clean_metrics)
                 }
                 continue
 
-            # Remove non-serializable objects
-            clean_metrics = {}
-
-            for key, value in model_data.items():
-                if key not in ["model", "le_vehicle"]:
-                    clean_metrics[key] = value
-
+            # normal models
+            clean_metrics = {k: v for k, v in model_data.items() if k not in ["model", "le_vehicle"]}
             info[model_name] = {
                 "status": model_data.get("status", "unknown"),
-                "metrics": clean_metrics
+                "metrics": to_native(clean_metrics)
             }
 
         return jsonify(info), 200
 
     except Exception as e:
+        print("Error in /models/info:", str(e))
+        print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
-
 
 
 if __name__ == "__main__":

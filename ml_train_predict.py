@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import math
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.neighbors import KNeighborsRegressor
@@ -13,17 +14,51 @@ from data_utils import load_csvs, is_season, is_weekend
 # Cache trained models globally
 TRAINED_MODELS = {}
 
+VEHICLE_TYPES = ["All", "Bike", "Car", "Tuk Tuk"]
+
 
 def ensure_columns(df, cols):
-    """Ensure all specified columns exist; add missing ones as 0."""
     for col in cols:
         if col not in df.columns:
             df[col] = 0
     return df
 
 
+def build_daily_from_transactions(transactions: pd.DataFrame, vehicle_type: str) -> pd.DataFrame:
+    """
+    Build a daily dataset from transactions filtered by vehicle_type.
+    Output columns match what models expect.
+    """
+    if transactions is None or transactions.empty:
+        return pd.DataFrame()
+
+    tx = transactions.copy()
+    tx["Date"] = pd.to_datetime(tx["Date"])
+
+    if vehicle_type != "All":
+        tx = tx[tx["VehicleType"] == vehicle_type]
+
+    if tx.empty:
+        return pd.DataFrame()
+
+    daily = tx.groupby("Date").agg(
+        TotalRentals=("RentalID", "count"),
+        RevenueLKR=("TotalPriceLKR", "sum"),
+        AvgDailyPrice=("DailyPriceLKR", "mean"),
+        AvgRentalDays=("RentalDays", "mean"),
+        IsSeason=("IsSeason", "max"),
+        IsWeekend=("IsWeekend", "max"),
+    ).reset_index()
+
+    daily["DemandHigh"] = (daily["TotalRentals"] >= 6).astype(int)
+    daily["Year"] = daily["Date"].dt.year
+    daily["Month"] = daily["Date"].dt.month
+
+    return daily
+
+
 # ---------------------------------------------------
-# 1️⃣ Linear Regression – Monthly Revenue
+# 1) Linear Regression – Monthly Revenue (All only)
 # ---------------------------------------------------
 def train_linear_regression_revenue():
     _, _, monthly = load_csvs()
@@ -45,7 +80,7 @@ def train_linear_regression_revenue():
     y_pred = model.predict(X_test)
     r2 = r2_score(y_test, y_pred)
     mse = mean_squared_error(y_test, y_pred)
-    rmse = np.sqrt(mse)  # ✅ added
+    rmse = np.sqrt(mse)
 
     return {
         "model": model,
@@ -57,24 +92,25 @@ def train_linear_regression_revenue():
 
 
 # ---------------------------------------------------
-# 2️⃣ Logistic Regression – Daily Demand
+# 2) Logistic Regression – Demand (per vehicle type)
 # ---------------------------------------------------
-def train_logistic_regression_demand():
-    _, daily, _ = load_csvs()
+def train_logistic_regression_demand(vehicle_type="All"):
+    transactions, daily_all, _ = load_csvs()
 
-    if daily is None or daily.empty or len(daily) < 5:
-        return {"model": None, "accuracy": 0, "status": "insufficient data"}
+    if vehicle_type == "All":
+        daily = daily_all
+    else:
+        daily = build_daily_from_transactions(transactions, vehicle_type)
+
+    if daily is None or daily.empty or len(daily) < 8:
+        return {"model": None, "accuracy": 0, "status": f"insufficient data ({vehicle_type})"}
 
     daily = ensure_columns(daily, ["IsSeason", "IsWeekend", "AvgDailyPrice", "AvgRentalDays", "DemandHigh"])
     X = daily[["IsSeason", "IsWeekend", "AvgDailyPrice", "AvgRentalDays"]].fillna(0)
     y = daily["DemandHigh"].fillna(0)
 
-    if len(X) < 3:
-        return {"model": None, "accuracy": 0, "status": "insufficient data"}
-
-    # Ensure there are at least 2 classes (avoid solver error)
     if len(pd.Series(y).unique()) < 2:
-        return {"model": None, "accuracy": 0, "status": "only one class in target"}
+        return {"model": None, "accuracy": 0, "status": f"only one class ({vehicle_type})"}
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -84,28 +120,26 @@ def train_logistic_regression_demand():
     y_pred = model.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
 
-    return {
-        "model": model,
-        "accuracy": round(acc, 4),
-        "status": "trained"
-    }
+    return {"model": model, "accuracy": round(acc, 4), "status": "trained"}
 
 
 # ---------------------------------------------------
-# 3️⃣ KNN Regression – Daily Rentals Count
+# 3) KNN Regression – Rentals Count (per vehicle type)
 # ---------------------------------------------------
-def train_knn_regressor_rentals():
-    _, daily, _ = load_csvs()
+def train_knn_regressor_rentals(vehicle_type="All"):
+    transactions, daily_all, _ = load_csvs()
+
+    if vehicle_type == "All":
+        daily = daily_all
+    else:
+        daily = build_daily_from_transactions(transactions, vehicle_type)
 
     if daily is None or daily.empty or len(daily) < 10:
-        return {"model": None, "r2": 0, "mse": 0, "rmse": 0, "status": "insufficient data"}
+        return {"model": None, "r2": 0, "mse": 0, "rmse": 0, "status": f"insufficient data ({vehicle_type})"}
 
     daily = ensure_columns(daily, ["IsSeason", "IsWeekend", "AvgDailyPrice", "TotalRentals"])
     X = daily[["IsSeason", "IsWeekend", "AvgDailyPrice"]].fillna(0)
     y = daily["TotalRentals"].fillna(0)
-
-    if len(X) < 5:
-        return {"model": None, "r2": 0, "mse": 0, "rmse": 0, "status": "insufficient data"}
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -115,7 +149,7 @@ def train_knn_regressor_rentals():
     y_pred = model.predict(X_test)
     r2 = r2_score(y_test, y_pred)
     mse = mean_squared_error(y_test, y_pred)
-    rmse = np.sqrt(mse)  # ✅ added
+    rmse = np.sqrt(mse)
 
     return {
         "model": model,
@@ -127,22 +161,21 @@ def train_knn_regressor_rentals():
 
 
 # ---------------------------------------------------
-# 4️⃣ SVM – Vehicle Type Classifier
+# 4) SVM – Vehicle Type (All only)
 # ---------------------------------------------------
 def train_svm_classifier_vehicle_type():
     transactions, _, _ = load_csvs()
 
-    if transactions is None or transactions.empty or len(transactions) < 10:
+    if transactions is None or transactions.empty or len(transactions) < 20:
         return {"model": None, "accuracy": 0, "status": "insufficient data"}
 
     transactions = ensure_columns(transactions, ["IsSeason", "IsWeekend", "RentalDays", "DailyPriceLKR", "VehicleType"])
 
     le_vehicle = LabelEncoder()
     y = le_vehicle.fit_transform(transactions["VehicleType"])
-
     X = transactions[["IsSeason", "IsWeekend", "RentalDays", "DailyPriceLKR"]].fillna(0)
 
-    if len(X) < 5 or len(np.unique(y)) < 2:
+    if len(np.unique(y)) < 2:
         return {"model": None, "accuracy": 0, "status": "insufficient vehicle classes"}
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -153,25 +186,18 @@ def train_svm_classifier_vehicle_type():
     y_pred = model.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
 
-    return {
-        "model": model,
-        "accuracy": round(acc, 4),
-        "le_vehicle": le_vehicle,
-        "status": "trained"
-    }
+    return {"model": model, "accuracy": round(acc, 4), "le_vehicle": le_vehicle, "status": "trained"}
 
 
 # ---------------------------------------------------
-# 5️⃣ Decision Tree – Risk Prediction
+# 5) Decision Tree – Risk (All only)
 # ---------------------------------------------------
 def train_decision_tree_risk():
     _, daily, _ = load_csvs()
-
-    if daily is None or daily.empty or len(daily) < 5:
+    if daily is None or daily.empty or len(daily) < 10:
         return {"model": None, "accuracy": 0, "status": "insufficient data"}
 
     daily = ensure_columns(daily, ["IsSeason", "IsWeekend", "AvgDailyPrice", "TotalRentals"])
-
     daily["RiskHigh"] = (
         ((daily["IsSeason"] == 1) & (daily["TotalRentals"] >= 6)) |
         ((daily["IsSeason"] == 0) & (daily["TotalRentals"] >= 4))
@@ -181,7 +207,7 @@ def train_decision_tree_risk():
     y = daily["RiskHigh"].fillna(0)
 
     if len(pd.Series(y).unique()) < 2:
-        return {"model": None, "accuracy": 0, "status": "only one class in target"}
+        return {"model": None, "accuracy": 0, "status": "only one class"}
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -191,51 +217,54 @@ def train_decision_tree_risk():
     y_pred = model.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
 
-    return {
-        "model": model,
-        "accuracy": round(acc, 4),
-        "status": "trained"
-    }
+    return {"model": model, "accuracy": round(acc, 4), "status": "trained"}
 
 
-# ---------------------------------------------------
-# Train All Models
-# ---------------------------------------------------
 def train_all_models():
     global TRAINED_MODELS
 
+    logistic_by_type = {}
+    knn_by_type = {}
+
+    for vt in VEHICLE_TYPES:
+        logistic_by_type[vt] = train_logistic_regression_demand(vt)
+        knn_by_type[vt] = train_knn_regressor_rentals(vt)
+
     TRAINED_MODELS = {
         "linear_reg": train_linear_regression_revenue(),
-        "logistic_reg": train_logistic_regression_demand(),
-        "knn_reg": train_knn_regressor_rentals(),
+        "logistic_reg": logistic_by_type,
+        "knn_reg": knn_by_type,
         "svm_classifier": train_svm_classifier_vehicle_type(),
         "decision_tree": train_decision_tree_risk()
     }
-
     return TRAINED_MODELS
 
 
-# ---------------------------------------------------
-# ✅ PREDICT DAILY
-# ---------------------------------------------------
 def predict_daily(date_str, vehicle_type="All"):
-    if not TRAINED_MODELS or "logistic_reg" not in TRAINED_MODELS:
+    if not TRAINED_MODELS:
         train_all_models()
+
+    vehicle_type = vehicle_type if vehicle_type in VEHICLE_TYPES else "All"
 
     date_obj = datetime.strptime(date_str, "%Y-%m-%d")
     is_season_val = is_season(date_obj)
     is_weekend_val = is_weekend(date_obj)
 
-    _, daily, _ = load_csvs()
+    transactions, daily_all, _ = load_csvs()
+    if vehicle_type == "All":
+        daily = daily_all
+    else:
+        daily = build_daily_from_transactions(transactions, vehicle_type)
+
     if daily is None or daily.empty:
         avg_price = 2500
         avg_rental_days = 2
     else:
-        avg_price = float(daily.get("AvgDailyPrice", pd.Series([2500])).mean())
+        avg_price = float(daily["AvgDailyPrice"].mean())
         avg_rental_days = float(daily.get("AvgRentalDays", pd.Series([2])).mean())
 
-    # demand
-    logistic_model = TRAINED_MODELS["logistic_reg"].get("model")
+    # Logistic model (by type)
+    logistic_model = TRAINED_MODELS["logistic_reg"].get(vehicle_type, {}).get("model")
     if logistic_model:
         X_demo = np.array([[is_season_val, is_weekend_val, avg_price, avg_rental_days]])
         demand_pred = int(logistic_model.predict(X_demo)[0])
@@ -243,8 +272,8 @@ def predict_daily(date_str, vehicle_type="All"):
     else:
         tomorrow_demand = "--"
 
-    # count
-    knn_model = TRAINED_MODELS["knn_reg"].get("model")
+    # KNN model (by type)
+    knn_model = TRAINED_MODELS["knn_reg"].get(vehicle_type, {}).get("model")
     if knn_model:
         X_knn = np.array([[is_season_val, is_weekend_val, avg_price]])
         count_pred = float(knn_model.predict(X_knn)[0])
@@ -252,91 +281,122 @@ def predict_daily(date_str, vehicle_type="All"):
     else:
         predicted_count = "--"
 
-    # price
-    recommended_price = int(avg_price * (1.2 if is_season_val == 1 else 0.9))
+    # Recommended price
+    type_multiplier = {"All": 1.0, "Bike": 0.9, "Car": 1.2, "Tuk Tuk": 1.0}
+    season_factor = 1.2 if is_season_val == 1 else 0.9
+    recommended_price = int(avg_price * season_factor * type_multiplier.get(vehicle_type, 1.0))
 
     return {
+        "vehicle_type": vehicle_type,
         "tomorrow_demand": tomorrow_demand,
         "predicted_count": predicted_count,
         "recommended_price": recommended_price
     }
 
 
-# ---------------------------------------------------
-# ✅ PREDICT MONTHLY
-# ---------------------------------------------------
-def predict_monthly(month_str):
-    if not TRAINED_MODELS or "linear_reg" not in TRAINED_MODELS:
+def predict_monthly(month_str: str):
+    """
+    Month format: YYYY-MM
+    Returns keys matching your frontend:
+    pred_revenue, pred_demand, pred_rental_count, pred_vehicle_type, pred_risk
+    """
+    if not TRAINED_MODELS:
         train_all_models()
 
-    year, month = map(int, month_str.split("-"))
-    is_season_val = 1 if (month >= 10 or month <= 3) else 0
+    month_dt = datetime.strptime(month_str, "%Y-%m")
+    year = month_dt.year
+    month = month_dt.month
 
-    _, _, monthly = load_csvs()
-    if monthly is None or monthly.empty:
-        return {
-            "pred_revenue": "--",
-            "pred_demand": "--",
-            "pred_rental_count": "--",
-            "pred_vehicle_type": "--",
-            "pred_risk": "--"
-        }
+    season_val = 1 if (month >= 10 or month <= 3) else 0
 
-    avg_total_rentals = float(monthly["TotalRentals"].mean())
-    avg_daily_price = float(monthly["AvgDailyPrice"].mean())
-    avg_season_days = float(monthly["SeasonDays"].mean())
-    avg_weekend_days = float(monthly["WeekendDays"].mean())
-    avg_high_demand_days = float(monthly["HighDemandDays"].mean())
+    # month day range
+    start = pd.Timestamp(year=year, month=month, day=1)
+    end = start + pd.offsets.MonthEnd(1)
+    days = pd.date_range(start, end, freq="D")
 
-    # revenue
-    linear_model = TRAINED_MODELS["linear_reg"].get("model")
-    if linear_model:
-        X_linear = np.array([[avg_total_rentals, avg_daily_price, avg_season_days, avg_weekend_days, avg_high_demand_days]])
-        revenue_pred = float(linear_model.predict(X_linear)[0])
-        pred_revenue = int(max(revenue_pred, 0))
+    weekend_days = int((days.weekday >= 5).sum())
+    season_days = int(season_val * len(days))
+
+    transactions, daily, monthly = load_csvs()
+
+    # fallback averages
+    avg_price = 2500.0
+    avg_rental_days = 2.0
+    avg_total_rentals_per_day = 4.0
+
+    if daily is not None and not daily.empty:
+        if "AvgDailyPrice" in daily.columns:
+            avg_price = float(pd.to_numeric(daily["AvgDailyPrice"], errors="coerce").dropna().mean() or avg_price)
+        if "AvgRentalDays" in daily.columns:
+            avg_rental_days = float(pd.to_numeric(daily["AvgRentalDays"], errors="coerce").dropna().mean() or avg_rental_days)
+        if "TotalRentals" in daily.columns:
+            avg_total_rentals_per_day = float(pd.to_numeric(daily["TotalRentals"], errors="coerce").dropna().mean() or avg_total_rentals_per_day)
+
+    # ---- Linear Regression monthly revenue
+    lin = TRAINED_MODELS.get("linear_reg", {}).get("model")
+    if lin is not None:
+        est_total_rentals = int(round(avg_total_rentals_per_day * len(days)))
+        est_high_demand_days = int(round(0.35 * len(days)))
+
+        X_lin = pd.DataFrame([{
+            "TotalRentals": est_total_rentals,
+            "AvgDailyPrice": avg_price,
+            "SeasonDays": season_days,
+            "WeekendDays": weekend_days,
+            "HighDemandDays": est_high_demand_days
+        }])
+
+        pred_revenue_val = float(lin.predict(X_lin)[0])
+        pred_revenue = f"Rs {int(max(pred_revenue_val, 0)):,}"
     else:
         pred_revenue = "--"
 
-    # demand
-    logistic_model = TRAINED_MODELS["logistic_reg"].get("model")
-    if logistic_model:
-        is_weekend_avg = avg_weekend_days / 30
-        X_logistic = np.array([[is_season_val, is_weekend_avg, avg_daily_price, 2]])
-        demand_pred = int(logistic_model.predict(X_logistic)[0])
+    # ---- Logistic demand (All)
+    log = TRAINED_MODELS.get("logistic_reg", {}).get("All", {}).get("model")
+    if log is not None:
+        is_weekend_avg = weekend_days / max(len(days), 1)
+        X_log = np.array([[season_val, is_weekend_avg, avg_price, avg_rental_days]])
+        demand_pred = int(log.predict(X_log)[0])
         pred_demand = "High" if demand_pred == 1 else "Low"
     else:
         pred_demand = "--"
 
-    # rentals count (monthly approx)
-    knn_model = TRAINED_MODELS["knn_reg"].get("model")
-    if knn_model:
-        is_weekend_avg = avg_weekend_days / 30
-        X_knn = np.array([[is_season_val, is_weekend_avg, avg_daily_price]])
-        count_pred = float(knn_model.predict(X_knn)[0])
-        pred_rental_count = int(round(max(count_pred * 30, 0)))
+    # ---- KNN rental count (All)
+    knn = TRAINED_MODELS.get("knn_reg", {}).get("All", {}).get("model")
+    if knn is not None:
+        is_weekend_avg = weekend_days / max(len(days), 1)
+        X_knn = np.array([[season_val, is_weekend_avg, avg_price]])
+        per_day = float(knn.predict(X_knn)[0])
+        pred_rental_count_val = int(max(round(per_day * len(days)), 0))
+        pred_rental_count = str(pred_rental_count_val)
     else:
         pred_rental_count = "--"
 
-    # vehicle type
-    svm_model = TRAINED_MODELS["svm_classifier"].get("model")
-    le_vehicle = TRAINED_MODELS["svm_classifier"].get("le_vehicle")
-    if svm_model and le_vehicle:
-        X_svm = np.array([[is_season_val, avg_weekend_days / 30, 2, avg_daily_price]])
-        idx = int(svm_model.predict(X_svm)[0])
-        pred_vehicle_type = le_vehicle.inverse_transform([idx])[0]
+    # ---- SVM vehicle type recommendation
+    svm_pack = TRAINED_MODELS.get("svm_classifier", {})
+    svm = svm_pack.get("model")
+    le_vehicle = svm_pack.get("le_vehicle")
+
+    if svm is not None and le_vehicle is not None:
+        is_weekend_flag = 1 if (weekend_days / max(len(days), 1)) > 0.25 else 0
+        X_svm = np.array([[season_val, is_weekend_flag, avg_rental_days, avg_price]])
+        pred_class = int(svm.predict(X_svm)[0])
+        pred_vehicle_type = str(le_vehicle.inverse_transform([pred_class])[0])
     else:
         pred_vehicle_type = "--"
 
-    # risk
-    dt_model = TRAINED_MODELS["decision_tree"].get("model")
-    if dt_model:
-        X_dt = np.array([[is_season_val, avg_weekend_days / 30, avg_daily_price]])
-        risk_pred = int(dt_model.predict(X_dt)[0])
-        pred_risk = "Yes" if risk_pred == 1 else "No"
+    # ---- Decision tree risk
+    dt = TRAINED_MODELS.get("decision_tree", {}).get("model")
+    if dt is not None:
+        is_weekend_flag = 1 if (weekend_days / max(len(days), 1)) > 0.25 else 0
+        X_dt = np.array([[season_val, is_weekend_flag, avg_price]])
+        risk_pred = int(dt.predict(X_dt)[0])
+        pred_risk = "High Risk" if risk_pred == 1 else "Low Risk"
     else:
         pred_risk = "--"
 
     return {
+        "month": month_str,
         "pred_revenue": pred_revenue,
         "pred_demand": pred_demand,
         "pred_rental_count": pred_rental_count,
