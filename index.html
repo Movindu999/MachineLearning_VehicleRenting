@@ -1,0 +1,476 @@
+<!-- ✅ FULL UPDATED index.html (Copy & Replace Your index.html بالكامل) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Rental ML Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-left">
+            <div class="logo">
+                <span class="logo-icon">🚗</span>
+                <div>
+                    <h1 class="logo-title">Vehicle Rental ML Dashboard</h1>
+                    <p class="logo-subtitle">Season Oct–Mar</p>
+                </div>
+            </div>
+        </div>
+        <div class="navbar-right">
+            <div class="status-pill">
+                <span class="status-dot"></span>
+                <span id="backend_status">Backend: Not Connected</span>
+            </div>
+            <div class="user-badge">
+                <span class="user-icon">👤</span>
+                Movi Admin
+            </div>
+        </div>
+    </nav>
+
+    <!-- Container -->
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <a href="#overview" class="nav-link active">
+                    <span class="nav-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#daily-prediction" class="nav-link">
+                    <span class="nav-icon">📈</span>
+                    <span>Daily Prediction</span>
+                </a>
+                <a href="#monthly-prediction" class="nav-link">
+                    <span class="nav-icon">📅</span>
+                    <span>Monthly Prediction</span>
+                </a>
+                <a href="#add-data" class="nav-link">
+                    <span class="nav-icon">➕</span>
+                    <span>Add Data</span>
+                </a>
+                <a href="#dataset" class="nav-link">
+                    <span class="nav-icon">📋</span>
+                    <span>Dataset</span>
+                </a>
+                <a href="#metrics" class="nav-link">
+                    <span class="nav-icon">🔬</span>
+                    <span>Model Metrics</span>
+                </a>
+                <a href="#settings" class="nav-link">
+                    <span class="nav-icon">⚙️</span>
+                    <span>Settings</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Overview Section -->
+            <section id="overview" class="content-section">
+                <div class="section-header">
+                    <h2>📊 Dashboard Overview</h2>
+                    <p class="section-subtitle">Real-time vehicle rental statistics and insights</p>
+                </div>
+
+                <div class="kpi-grid">
+                    <div class="kpi-card gradient-blue">
+                        <div class="kpi-icon">🚙</div>
+                        <div class="kpi-content">
+                            <p class="kpi-label">Today's Rentals</p>
+                            <p class="kpi-value" id="kpi_today_rentals">--</p>
+                        </div>
+                    </div>
+                    <div class="kpi-card gradient-purple">
+                        <div class="kpi-icon">📊</div>
+                        <div class="kpi-content">
+                            <p class="kpi-label">This Month Rentals</p>
+                            <p class="kpi-value" id="kpi_month_rentals">--</p>
+                        </div>
+                    </div>
+                    <div class="kpi-card gradient-green">
+                        <div class="kpi-icon">🔄</div>
+                        <div class="kpi-content">
+                            <p class="kpi-label">Active Vehicles</p>
+                            <p class="kpi-value" id="kpi_active_vehicles">-- <span class="kpi-small">(-- -- --)</span></p>
+                        </div>
+                    </div>
+                    <div class="kpi-card gradient-orange">
+                        <div class="kpi-icon">🌤️</div>
+                        <div class="kpi-content">
+                            <p class="kpi-label">Peak Season</p>
+                            <p class="kpi-value" id="kpi_peak">--</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="quick-actions-panel">
+                    <h3 class="quick-actions-title">⚡ Quick Actions</h3>
+                    <div class="quick-actions-buttons">
+                        <button class="btn btn-primary" onclick="location.hash='#add-data'">
+                            <span class="btn-icon">➕</span> Add New Rental
+                        </button>
+                        <button class="btn btn-secondary" onclick="location.hash='#daily-prediction'">
+                            <span class="btn-icon">🔮</span> Run Predictions
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Daily Prediction Section -->
+            <section id="daily-prediction" class="content-section">
+                <div class="section-header">
+                    <h2>📈 Daily Prediction</h2>
+                    <p class="section-subtitle">Forecast rentals and pricing for a specific day</p>
+                </div>
+
+                <div class="filter-bar">
+                    <div class="filter-input">
+                        <label for="filter_date">Date</label>
+                        <input type="date" id="filter_date" class="input-field">
+                    </div>
+                    <div class="filter-input">
+                        <label for="filter_vehicle_type">Vehicle Type</label>
+                        <select id="filter_vehicle_type" class="input-field">
+                            <option value="All">All</option>
+                            <option value="Bike">Bike</option>
+                            <option value="Car">Car</option>
+                            <option value="Tuk Tuk">Tuk Tuk</option>
+                        </select>
+                    </div>
+                    <button id="btn_predict_day" class="btn btn-primary btn-filter">Predict for Selected Day</button>
+                </div>
+
+                <div class="predictions-grid">
+                    <div class="prediction-card">
+                        <div class="prediction-header">Tomorrow Demand</div>
+                        <div class="prediction-value"><span id="daily_pred_demand">--</span></div>
+                        <div class="prediction-footer">Confidence: <span id="daily_conf">--</span></div>
+                    </div>
+                    <div class="prediction-card">
+                        <div class="prediction-header">Predicted Rentals</div>
+                        <div class="prediction-value"><span id="daily_pred_count">--</span></div>
+                        <div class="prediction-footer">Estimated units</div>
+                    </div>
+                    <div class="prediction-card">
+                        <div class="prediction-header">Recommended Price</div>
+                        <div class="prediction-value"><span id="daily_pred_price">--</span></div>
+                        <div class="prediction-footer">Per vehicle/day</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Monthly Prediction Section -->
+            <section id="monthly-prediction" class="content-section">
+                <div class="section-header">
+                    <h2>📅 Monthly Prediction</h2>
+                    <p class="section-subtitle">Advanced forecasting with ML models</p>
+                </div>
+
+                <div class="filter-bar">
+                    <div class="filter-input">
+                        <label for="filter_month">Month</label>
+                        <select id="filter_month" class="input-field">
+                            <option value="">Select month</option>
+                            <option value="2026-01">January 2026</option>
+                            <option value="2026-02">February 2026</option>
+                            <option value="2026-03">March 2026</option>
+                            <option value="2026-04">April 2026</option>
+                        </select>
+                    </div>
+
+                    <button id="btn_predict_month" class="btn btn-primary btn-filter">Predict Month</button>
+                </div>
+
+                <div class="monthly-predictions-grid">
+                    <div class="monthly-card">
+                        <div class="model-badge">Linear Regression</div>
+                        <h3>Monthly Revenue Prediction</h3>
+                        <div class="metric-value large"><span id="pred_revenue">--</span></div>
+                        <p class="metric-detail">Estimated monthly revenue</p>
+                    </div>
+                    <div class="monthly-card">
+                        <div class="model-badge">Logistic Regression</div>
+                        <h3>Demand Forecast</h3>
+                        <div class="metric-value large"><span id="pred_demand">--</span></div>
+                        <p class="metric-detail">Expected demand level</p>
+                    </div>
+                    <div class="monthly-card">
+                        <div class="model-badge">KNN Regression</div>
+                        <h3>Rental Count</h3>
+                        <div class="metric-value large"><span id="pred_rental_count">--</span></div>
+                        <p class="metric-detail">Expected total rentals</p>
+                    </div>
+                    <div class="monthly-card">
+                        <div class="model-badge">SVM / KNN</div>
+                        <h3>Vehicle Type Recommendation</h3>
+                        <div class="metric-value large"><span id="pred_vehicle_type">--</span></div>
+                        <p class="metric-detail">Best performing vehicle</p>
+                    </div>
+                    <div class="monthly-card" id="shortage-risk-card">
+                        <div class="model-badge">Decision Tree</div>
+                        <h3>Vehicle Risk Prediction</h3>
+                        <div class="metric-value large"><span id="pred_shortage">--</span></div>
+                        <p class="metric-detail">Risk assessment</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Add New Rental Data Section -->
+            <section id="add-data" class="content-section">
+                <div class="section-header">
+                    <h2>➕ Add New Rental Data</h2>
+                    <p class="section-subtitle">Insert new rental records into the dataset</p>
+                </div>
+
+                <div class="form-container">
+                    <form class="data-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="new_date">Date <span class="required">*</span></label>
+                                <input type="date" id="new_date" class="input-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="new_vehicle">Vehicle Type <span class="required">*</span></label>
+                                <select id="new_vehicle" class="input-field" required>
+                                    <option value="">Select vehicle type</option>
+                                    <option value="Bike">Bike 🏍️</option>
+                                    <option value="Car">Car 🚗</option>
+                                    <option value="Tuk Tuk">Tuk Tuk 🛺</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="new_days">Rental Days <span class="required">*</span></label>
+                                <input type="number" id="new_days" class="input-field" min="1" max="30" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="new_price">Daily Price (Rs) <span class="required">*</span></label>
+                                <input type="number" id="new_price" class="input-field" min="500" step="100" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="new_customer_type">Customer Type <span class="required">*</span></label>
+                                <select id="new_customer_type" class="input-field" required>
+                                    <option value="">Select customer type</option>
+                                    <option value="Local">Local</option>
+                                    <option value="Foreigner">Foreigner</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="new_notes">Notes</label>
+                            <textarea id="new_notes" class="input-field textarea-field" rows="4" placeholder="Add any additional notes..."></textarea>
+                        </div>
+
+                        <div class="form-buttons">
+                            <button type="button" id="btn_save_dataset" class="btn btn-primary">
+                                <span class="btn-icon">💾</span> Save to Dataset
+                            </button>
+                            <button type="reset" id="btn_clear_form" class="btn btn-outline">
+                                <span class="btn-icon">🔄</span> Clear
+                            </button>
+                        </div>
+
+                        <div id="save_status" class="status-message"></div>
+                        <p class="hint-text">After saving, predictions will re-calculate using updated dataset.</p>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Model Metrics Section -->
+            <section id="metrics" class="content-section">
+                <div class="section-header">
+                    <h2>🔬 Model Metrics</h2>
+                    <p class="section-subtitle">Performance evaluation of ML models</p>
+                </div>
+
+                <div class="metrics-table-wrapper">
+                    <table class="metrics-table">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th>Task</th>
+                                <th>Main Metric</th>
+                                <th>Score</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>--</td>
+                                <td>--</td>
+                                <td>--</td>
+                                <td>--</td>
+                                <td>--</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section id="settings" class="content-section">
+                <div class="section-header">
+                    <h2>⚙️ Settings</h2>
+                    <p class="section-subtitle">Configure dashboard preferences</p>
+                </div>
+
+                <p style="opacity:0.8;">Settings UI can be extended later.</p>
+            </section>
+        </main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>© 2026 Vehicle Rental ML Dashboard | Frontend Prototype</p>
+    </footer>
+
+    <!-- ✅ Backend Connect + Add Data + Predictions + Metrics -->
+    <script>
+      const API = "http://127.0.0.1:5000";
+
+      async function setBackendStatus() {
+        const el = document.getElementById("backend_status");
+        try {
+          const r = await fetch(`${API}/health`);
+          el.textContent = r.ok ? "Backend: Connected ✅" : "Backend: Not Connected ❌";
+        } catch (e) {
+          el.textContent = "Backend: Not Connected ❌";
+        }
+      }
+
+      // ✅ ADD DATA
+      document.getElementById("btn_save_dataset")?.addEventListener("click", async () => {
+        const payload = {
+          date: document.getElementById("new_date").value,
+          vehicle_type: document.getElementById("new_vehicle").value,
+          customer_type: document.getElementById("new_customer_type").value,
+          rental_days: parseInt(document.getElementById("new_days").value),
+          daily_price: parseInt(document.getElementById("new_price").value),
+          notes: document.getElementById("new_notes").value || ""
+        };
+
+        const msg = document.getElementById("save_status");
+        msg.textContent = "Saving...";
+        msg.style.display = "block";
+
+        const r = await fetch(`${API}/add_rental`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const d = await r.json();
+        msg.textContent = d.message ? `✅ Saved (ID: ${d.rental_id})` : `❌ ${d.error || "Save failed"}`;
+
+        // refresh metrics after new training
+        loadModelMetrics();
+      });
+
+      // ✅ DAILY PREDICT
+      document.getElementById("btn_predict_day")?.addEventListener("click", async () => {
+        const payload = {
+          date: document.getElementById("filter_date").value,
+          vehicle_type: document.getElementById("filter_vehicle_type").value || "All"
+        };
+
+        const r = await fetch(`${API}/predict/daily`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const d = await r.json();
+        document.getElementById("daily_pred_demand").textContent = d.tomorrow_demand ?? "--";
+        document.getElementById("daily_pred_count").textContent = d.predicted_count ?? "--";
+        document.getElementById("daily_pred_price").textContent = d.recommended_price ?? "--";
+        document.getElementById("daily_conf").textContent = d.confidence ? `${d.confidence}%` : "--";
+      });
+
+      // ✅ MONTHLY PREDICT
+      document.getElementById("btn_predict_month")?.addEventListener("click", async () => {
+        const monthVal = document.getElementById("filter_month").value;
+
+        const payload = { month: monthVal };
+
+        const r = await fetch(`${API}/predict/monthly`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const d = await r.json();
+        document.getElementById("pred_revenue").textContent = d.pred_revenue ?? "--";
+        document.getElementById("pred_demand").textContent = d.pred_demand ?? "--";
+        document.getElementById("pred_rental_count").textContent = d.pred_rental_count ?? "--";
+        document.getElementById("pred_vehicle_type").textContent = d.pred_vehicle_type ?? "--";
+        document.getElementById("pred_shortage").textContent = d.pred_risk ?? "--";
+      });
+
+      // ✅ LOAD MODEL METRICS INTO TABLE
+      async function loadModelMetrics() {
+        try {
+          const r = await fetch(`${API}/models/info`);
+          const data = await r.json();
+
+          const tbody = document.querySelector(".metrics-table tbody");
+          if (!tbody) return;
+
+          const rows = [
+            { key: "linear_reg", name: "Linear Regression", task: "Monthly Revenue", metric: "R² / RMSE" },
+            { key: "logistic_reg", name: "Logistic Regression", task: "Demand High/Low", metric: "Accuracy" },
+            { key: "knn_reg", name: "KNN Regression", task: "Daily Rentals Count", metric: "R² / RMSE" },
+            { key: "svm_classifier", name: "SVM Classifier", task: "Vehicle Type Recommendation", metric: "Accuracy" },
+            { key: "decision_tree", name: "Decision Tree", task: "Risk Prediction", metric: "Accuracy" }
+          ];
+
+          tbody.innerHTML = "";
+
+          rows.forEach(row => {
+            const m = data[row.key]?.metrics || {};
+            const status = data[row.key]?.status || "--";
+
+            let score = "--";
+            let note = status;
+
+            if (m.accuracy !== undefined) {
+              score = (Number(m.accuracy) * 100).toFixed(2) + "%";
+              note = "Accuracy (higher better)";
+            } else {
+              const r2 = (m.r2 !== undefined) ? Number(m.r2).toFixed(3) : "--";
+              const rmse = (m.rmse !== undefined) ? Number(m.rmse).toFixed(2) : "--";
+              score = `R²: ${r2} | RMSE: ${rmse}`;
+              note = "R² high, RMSE low";
+            }
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td>${row.name}</td>
+              <td>${row.task}</td>
+              <td>${row.metric}</td>
+              <td>${score}</td>
+              <td>${note}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+
+        } catch (e) {
+          console.log("Metrics load error:", e);
+        }
+      }
+
+      // run on load
+      setBackendStatus();
+      loadModelMetrics();
+    </script>
+</body>
+</html>
