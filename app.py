@@ -5,7 +5,7 @@ import traceback
 import numpy as np
 import pandas as pd
 
-from data_utils import append_transaction, rebuild_daily_monthly
+from data_utils import append_transaction, rebuild_daily_monthly, load_csvs
 from ml_train_predict import train_all_models, predict_daily, predict_monthly
 
 app = Flask(__name__)
@@ -13,7 +13,6 @@ CORS(app)
 
 
 def to_native(x):
-    """Convert numpy/pandas types to JSON-safe python types."""
     if isinstance(x, (np.integer,)):
         return int(x)
     if isinstance(x, (np.floating,)):
@@ -31,7 +30,6 @@ def to_native(x):
     return x
 
 
-# Train models on startup
 print("Training ML models on startup...")
 models = train_all_models()
 print("Models trained successfully!")
@@ -52,7 +50,6 @@ def add_rental():
             if f not in data:
                 return jsonify({"error": f"Missing field: {f}"}), 400
 
-        # date validate
         try:
             datetime.strptime(data["date"], "%Y-%m-%d")
         except ValueError:
@@ -67,18 +64,15 @@ def add_rental():
             "notes": data.get("notes", "")
         })
 
-        # rebuild daily + monthly
         rebuild_daily_monthly()
 
-        # retrain
         global models
         models = train_all_models()
 
-        response = {
+        return jsonify({
             "message": "saved",
             "rental_id": int(new_record.get("RentalID")) if new_record.get("RentalID") is not None else None
-        }
-        return jsonify(response), 201
+        }), 201
 
     except Exception as e:
         print("Error in /add_rental:", str(e))
@@ -101,8 +95,8 @@ def predict_daily_route():
         vehicle_type = data.get("vehicle_type", "All")
         preds = predict_daily(data["date"], vehicle_type)
 
-        # demo confidence
-        preds["confidence"] = 85
+        if "confidence" not in preds:
+            preds["confidence"] = 85
 
         return jsonify(to_native(preds)), 200
 
@@ -138,8 +132,8 @@ def models_info():
     """
     Returns model metrics for dashboard.
     - linear_reg, svm_classifier, decision_tree => normal dict
-    - logistic_reg, knn_reg => dict by vehicle type {All, Bike, Car, Tuk Tuk}
-      For metrics table, we show ONLY "All".
+    - logistic_reg, knn_reg => dict by vehicle type
+      For metrics table, show ONLY "All".
     """
     try:
         info = {}
@@ -152,12 +146,7 @@ def models_info():
 
             # dict-by-type models
             if model_name in ["logistic_reg", "knn_reg"] and isinstance(model_data, dict):
-                if "All" in model_data and isinstance(model_data["All"], dict):
-                    chosen = model_data["All"]
-                else:
-                    first_key = next(iter(model_data.keys()))
-                    chosen = model_data[first_key] if isinstance(model_data[first_key], dict) else {}
-
+                chosen = model_data.get("All") or next(iter(model_data.values()))
                 clean_metrics = {k: v for k, v in chosen.items() if k not in ["model", "le_vehicle"]}
                 info[model_name] = {
                     "status": chosen.get("status", "unknown"),
@@ -176,6 +165,60 @@ def models_info():
 
     except Exception as e:
         print("Error in /models/info:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+# ✅ NEW: Scatter data endpoint
+@app.route("/chart/monthly_scatter", methods=["GET"])
+def monthly_scatter_chart():
+    """
+    Month vs TotalRentals (scatter) + season grouping.
+    Response:
+    {
+      "labels": ["2024-01","2024-02",...],
+      "season": [{"x":0,"y":120,"month":"2024-01"}, ...],
+      "non_season": [{"x":3,"y":80,"month":"2024-04"}, ...]
+    }
+    """
+    try:
+        _, _, monthly = load_csvs()
+        if monthly is None or monthly.empty:
+            return jsonify({"labels": [], "season": [], "non_season": []}), 200
+
+        m = monthly.copy()
+        m["Month"] = m["Month"].astype(str)
+
+        # Sort by Month safely
+        m["MonthDT"] = pd.to_datetime(m["Month"], format="%Y-%m", errors="coerce")
+        m = m.dropna(subset=["MonthDT"]).sort_values("MonthDT").reset_index(drop=True)
+
+        labels = m["Month"].tolist()
+        season_points = []
+        non_season_points = []
+
+        for i, row in m.iterrows():
+            month_str = row["Month"]
+            total_rentals = float(row.get("TotalRentals", 0) or 0)
+
+            mm = int(month_str.split("-")[1])
+            is_season = 1 if (mm >= 10 or mm <= 3) else 0
+
+            pt = {"x": i, "y": total_rentals, "month": month_str}
+
+            if is_season == 1:
+                season_points.append(pt)
+            else:
+                non_season_points.append(pt)
+
+        return jsonify({
+            "labels": labels,
+            "season": season_points,
+            "non_season": non_season_points
+        }), 200
+
+    except Exception as e:
+        print("Error in /chart/monthly_scatter:", str(e))
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 

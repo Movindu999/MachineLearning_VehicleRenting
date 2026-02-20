@@ -20,8 +20,8 @@
             </div>
         </div>
         <div class="navbar-right">
-            <div class="status-pill">
-                <span class="status-dot"></span>
+            <div class="status-pill" id="status_pill">
+                <span class="status-dot" id="status_dot"></span>
                 <span id="backend_status">Backend: Not Connected</span>
             </div>
             <div class="user-badge">
@@ -146,7 +146,7 @@
 
                 <div class="predictions-grid">
                     <div class="prediction-card">
-                        <div class="prediction-header">Tomorrow Demand</div>
+                        <div class="prediction-header">Predicted Demand</div>
                         <div class="prediction-value"><span id="daily_pred_demand">--</span></div>
                         <div class="prediction-footer">Confidence: <span id="daily_conf">--</span></div>
                     </div>
@@ -216,6 +216,15 @@
                         <div class="metric-value large"><span id="pred_shortage">--</span></div>
                         <p class="metric-detail">Risk assessment</p>
                     </div>
+                </div>
+
+                <!-- ✅ NEW: Scatter plot -->
+                <div class="chart-placeholder">
+                    <div class="chart-header">📌 Month vs Total Rentals (Scatter) — Season vs Non-Season</div>
+                    <canvas id="monthlyScatter" height="120"></canvas>
+                    <p class="chart-note">
+                        Season months (Oct–Mar) & Non-season months (Apr–Sep)
+                    </p>
                 </div>
             </section>
 
@@ -334,17 +343,40 @@
         <p>© 2026 Vehicle Rental ML Dashboard | Frontend Prototype</p>
     </footer>
 
-    <!-- ✅ Backend Connect + Add Data + Predictions + Metrics -->
+    <!-- ✅ Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- ✅ Backend Connect + Add Data + Predictions + Metrics + Scatter -->
     <script>
       const API = "http://127.0.0.1:5000";
+      let monthlyScatterChart = null;
 
       async function setBackendStatus() {
         const el = document.getElementById("backend_status");
+        const pill = document.getElementById("status_pill");
+        const dot = document.getElementById("status_dot");
+
         try {
           const r = await fetch(`${API}/health`);
-          el.textContent = r.ok ? "Backend: Connected ✅" : "Backend: Not Connected ❌";
+          if (r.ok) {
+            el.textContent = "Backend: Connected ✅";
+            pill?.classList.add("connected");
+            pill?.classList.remove("disconnected");
+            dot?.classList.add("connected");
+            dot?.classList.remove("disconnected");
+          } else {
+            el.textContent = "Backend: Not Connected ❌";
+            pill?.classList.add("disconnected");
+            pill?.classList.remove("connected");
+            dot?.classList.add("disconnected");
+            dot?.classList.remove("connected");
+          }
         } catch (e) {
           el.textContent = "Backend: Not Connected ❌";
+          pill?.classList.add("disconnected");
+          pill?.classList.remove("connected");
+          dot?.classList.add("disconnected");
+          dot?.classList.remove("connected");
         }
       }
 
@@ -361,7 +393,7 @@
 
         const msg = document.getElementById("save_status");
         msg.textContent = "Saving...";
-        msg.style.display = "block";
+        msg.className = "status-message show info";
 
         const r = await fetch(`${API}/add_rental`, {
           method: "POST",
@@ -370,10 +402,18 @@
         });
 
         const d = await r.json();
-        msg.textContent = d.message ? `✅ Saved (ID: ${d.rental_id})` : `❌ ${d.error || "Save failed"}`;
 
-        // refresh metrics after new training
+        if (r.ok) {
+          msg.textContent = d.message ? `✅ Saved (ID: ${d.rental_id})` : "✅ Saved";
+          msg.className = "status-message show success";
+        } else {
+          msg.textContent = `❌ ${d.error || "Save failed"}`;
+          msg.className = "status-message show error";
+        }
+
+        // refresh metrics + scatter after new training + rebuild monthly
         loadModelMetrics();
+        loadMonthlyScatter();
       });
 
       // ✅ DAILY PREDICT
@@ -399,7 +439,6 @@
       // ✅ MONTHLY PREDICT
       document.getElementById("btn_predict_month")?.addEventListener("click", async () => {
         const monthVal = document.getElementById("filter_month").value;
-
         const payload = { month: monthVal };
 
         const r = await fetch(`${API}/predict/monthly`, {
@@ -414,6 +453,13 @@
         document.getElementById("pred_rental_count").textContent = d.pred_rental_count ?? "--";
         document.getElementById("pred_vehicle_type").textContent = d.pred_vehicle_type ?? "--";
         document.getElementById("pred_shortage").textContent = d.pred_risk ?? "--";
+
+        // optional warning style
+        const riskCard = document.getElementById("shortage-risk-card");
+        if (riskCard) {
+          if ((d.pred_risk || "").toLowerCase().includes("high")) riskCard.classList.add("warning");
+          else riskCard.classList.remove("warning");
+        }
       });
 
       // ✅ LOAD MODEL METRICS INTO TABLE
@@ -468,9 +514,75 @@
         }
       }
 
+      // ✅ SCATTER LOAD
+      async function loadMonthlyScatter() {
+        try {
+          const r = await fetch(`${API}/chart/monthly_scatter`);
+          const d = await r.json();
+
+          const labels = d.labels || [];
+          const season = d.season || [];
+          const nonSeason = d.non_season || [];
+
+          const canvas = document.getElementById("monthlyScatter");
+          if (!canvas) return;
+
+          const ctx = canvas.getContext("2d");
+
+          if (monthlyScatterChart) monthlyScatterChart.destroy();
+
+          monthlyScatterChart = new Chart(ctx, {
+            type: "scatter",
+            data: {
+              datasets: [
+                {
+                  label: "Season (Oct–Mar)",
+                  data: season,
+                  backgroundColor: "rgba(16, 185, 129, 0.85)"
+                },
+                {
+                  label: "Non-Season (Apr–Sep)",
+                  data: nonSeason,
+                  backgroundColor: "rgba(249, 115, 22, 0.85)"
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => {
+                      const v = ctx.raw || {};
+                      const monthName = v.month ?? (labels[v.x] ?? "");
+                      return `${monthName} | Rentals: ${v.y}`;
+                    }
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  title: { display: true, text: "Month" },
+                  ticks: {
+                    callback: (val) => labels[val] ?? ""
+                  }
+                },
+                y: {
+                  title: { display: true, text: "Total Rentals" },
+                  beginAtZero: true
+                }
+              }
+            }
+          });
+        } catch (e) {
+          console.log("Scatter load error:", e);
+        }
+      }
+
       // run on load
       setBackendStatus();
       loadModelMetrics();
+      loadMonthlyScatter();
     </script>
 </body>
 </html>
