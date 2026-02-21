@@ -13,6 +13,7 @@ CORS(app)
 
 
 def to_native(x):
+    """Convert numpy/pandas types to JSON-safe python types."""
     if isinstance(x, (np.integer,)):
         return int(x)
     if isinstance(x, (np.floating,)):
@@ -40,7 +41,7 @@ def health():
     return jsonify({"status": "ok"}), 200
 
 
-# ✅ NEW: Return Monthly dataset for chart
+# ✅ Return Monthly dataset for chart
 @app.route("/data/monthly", methods=["GET"])
 def get_monthly_data():
     try:
@@ -61,13 +62,15 @@ def get_monthly_data():
             except:
                 is_season = 0
 
+            total_rentals = pd.to_numeric(row["TotalRentals"], errors="coerce")
+            total_rentals = int(total_rentals) if pd.notna(total_rentals) else 0
+
             out.append({
                 "month": month_str,
-                "total_rentals": int(pd.to_numeric(row["TotalRentals"], errors="coerce") or 0),
+                "total_rentals": total_rentals,
                 "is_season": bool(is_season)
             })
 
-        # sort by month
         out.sort(key=lambda x: x["month"])
         return jsonify(out), 200
 
@@ -101,8 +104,10 @@ def add_rental():
             "notes": data.get("notes", "")
         })
 
+        # rebuild aggregates
         rebuild_daily_monthly()
 
+        # retrain models
         global models
         models = train_all_models()
 
@@ -132,7 +137,8 @@ def predict_daily_route():
         vehicle_type = data.get("vehicle_type", "All")
         preds = predict_daily(data["date"], vehicle_type)
 
-        if "confidence" not in preds:
+        # optional confidence fallback
+        if isinstance(preds, dict) and "confidence" not in preds:
             preds["confidence"] = 85
 
         return jsonify(to_native(preds)), 200
@@ -168,12 +174,22 @@ def predict_monthly_route():
 def models_info():
     """
     Returns model metrics for dashboard.
+
     - linear_reg, svm_classifier, decision_tree => normal dict
     - logistic_reg, knn_reg => dict by vehicle type
       For metrics table, show ONLY "All".
+
+    IMPORTANT:
+    Remove non-JSON objects like `model`, `scaler`, `le_vehicle`.
     """
     try:
         info = {}
+
+        def clean(d):
+            if not isinstance(d, dict):
+                return {}
+            drop = {"model", "scaler", "le_vehicle"}
+            return {k: v for k, v in d.items() if k not in drop}
 
         for model_name, model_data in models.items():
 
@@ -181,19 +197,20 @@ def models_info():
                 info[model_name] = {"status": "not available", "metrics": {}}
                 continue
 
+            # dict by vehicle type
             if model_name in ["logistic_reg", "knn_reg"] and isinstance(model_data, dict):
                 chosen = model_data.get("All") or next(iter(model_data.values()))
-                clean_metrics = {k: v for k, v in chosen.items() if k not in ["model", "le_vehicle"]}
+                cm = clean(chosen)
                 info[model_name] = {
-                    "status": chosen.get("status", "unknown"),
-                    "metrics": to_native(clean_metrics)
+                    "status": chosen.get("status", "unknown") if isinstance(chosen, dict) else "unknown",
+                    "metrics": to_native(cm)
                 }
                 continue
 
-            clean_metrics = {k: v for k, v in model_data.items() if k not in ["model", "le_vehicle"]}
+            cm = clean(model_data)
             info[model_name] = {
-                "status": model_data.get("status", "unknown"),
-                "metrics": to_native(clean_metrics)
+                "status": model_data.get("status", "unknown") if isinstance(model_data, dict) else "unknown",
+                "metrics": to_native(cm)
             }
 
         return jsonify(info), 200

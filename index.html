@@ -168,7 +168,7 @@
                     </div>
                 </div>
 
-                <!-- ✅ error message box (style.css එකේ status-message classes තියෙනවා නම් පේනවා) -->
+                <!-- ✅ error message box  -->
                 <div id="daily_error" class="status-message show error" style="display:none; margin-top:14px;"></div>
             </section>
 
@@ -365,7 +365,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-        <p>© 2026 Vehicle Rental ML Dashboard | Frontend Prototype</p>
+        <p>| © 2026 Vehicle Rental Prediciton Dashboard |</p>
     </footer>
 
     <!-- ✅ Backend Connect + Add Data + Predictions + Metrics + Chart -->
@@ -377,7 +377,7 @@
       // ✅ Tuk Tuk FIX helpers
       // ==============================
       function normalizeVehicleType(v) {
-        // backend එකට consistent value එකක් යවන්න
+        
         if (!v) return "All";
         const s = String(v).trim().toLowerCase();
         if (s === "tuk tuk" || s === "tuktuk" || s === "tuk-tuk" || s === "tuk_tuk") return "TukTuk";

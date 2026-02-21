@@ -4715,3 +4715,4 @@ RentalID,Date,Year,Month,IsSeason,IsWeekend,VehicleType,RentalDays,DailyPriceLKR
 4714,2026-02-22,2026,2,1,1,Bike,7,1500.0,10500.0,Foreigner,
 4715,2026-02-21,2026,2,1,1,Tuk Tuk,3,3300.0,9900.0,Foreigner,
 4716,2026-02-21,2026,2,1,1,Bike,3,2000.0,6000.0,Local,
+4717,2026-02-22,2026,2,1,1,Bike,3,2000.0,6000.0,Foreigner,
