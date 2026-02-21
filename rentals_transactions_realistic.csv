@@ -4711,3 +4711,5 @@ RentalID,Date,Year,Month,IsSeason,IsWeekend,VehicleType,RentalDays,DailyPriceLKR
 4710,2026-02-18,2026,2,1,0,Car,10,6000.0,60000.0,Foreigner,
 4711,2026-02-20,2026,2,1,0,Car,3,6000.0,18000.0,Foreigner,
 4712,2026-02-20,2026,2,1,0,Tuk Tuk,8,2400.0,19200.0,Foreigner,
+4713,2026-02-21,2026,2,1,1,Tuk Tuk,10,3000.0,30000.0,Local,
+4714,2026-02-22,2026,2,1,1,Bike,7,1500.0,10500.0,Foreigner,

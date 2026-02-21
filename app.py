@@ -40,6 +40,43 @@ def health():
     return jsonify({"status": "ok"}), 200
 
 
+# ✅ NEW: Return Monthly dataset for chart
+@app.route("/data/monthly", methods=["GET"])
+def get_monthly_data():
+    try:
+        _, _, monthly = load_csvs()
+        if monthly is None or monthly.empty:
+            return jsonify([]), 200
+
+        # Ensure Month + TotalRentals exist
+        if "Month" not in monthly.columns or "TotalRentals" not in monthly.columns:
+            return jsonify([]), 200
+
+        out = []
+        for _, row in monthly.iterrows():
+            month_str = str(row["Month"])  # "YYYY-MM"
+            try:
+                dt = datetime.strptime(month_str, "%Y-%m")
+                is_season = 1 if (dt.month >= 10 or dt.month <= 3) else 0
+            except:
+                is_season = 0
+
+            out.append({
+                "month": month_str,
+                "total_rentals": int(pd.to_numeric(row["TotalRentals"], errors="coerce") or 0),
+                "is_season": bool(is_season)
+            })
+
+        # sort by month
+        out.sort(key=lambda x: x["month"])
+        return jsonify(out), 200
+
+    except Exception as e:
+        print("Error in /data/monthly:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/add_rental", methods=["POST"])
 def add_rental():
     try:
@@ -144,7 +181,6 @@ def models_info():
                 info[model_name] = {"status": "not available", "metrics": {}}
                 continue
 
-            # dict-by-type models
             if model_name in ["logistic_reg", "knn_reg"] and isinstance(model_data, dict):
                 chosen = model_data.get("All") or next(iter(model_data.values()))
                 clean_metrics = {k: v for k, v in chosen.items() if k not in ["model", "le_vehicle"]}
@@ -154,7 +190,6 @@ def models_info():
                 }
                 continue
 
-            # normal models
             clean_metrics = {k: v for k, v in model_data.items() if k not in ["model", "le_vehicle"]}
             info[model_name] = {
                 "status": model_data.get("status", "unknown"),
@@ -165,60 +200,6 @@ def models_info():
 
     except Exception as e:
         print("Error in /models/info:", str(e))
-        print(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
-
-
-# ✅ NEW: Scatter data endpoint
-@app.route("/chart/monthly_scatter", methods=["GET"])
-def monthly_scatter_chart():
-    """
-    Month vs TotalRentals (scatter) + season grouping.
-    Response:
-    {
-      "labels": ["2024-01","2024-02",...],
-      "season": [{"x":0,"y":120,"month":"2024-01"}, ...],
-      "non_season": [{"x":3,"y":80,"month":"2024-04"}, ...]
-    }
-    """
-    try:
-        _, _, monthly = load_csvs()
-        if monthly is None or monthly.empty:
-            return jsonify({"labels": [], "season": [], "non_season": []}), 200
-
-        m = monthly.copy()
-        m["Month"] = m["Month"].astype(str)
-
-        # Sort by Month safely
-        m["MonthDT"] = pd.to_datetime(m["Month"], format="%Y-%m", errors="coerce")
-        m = m.dropna(subset=["MonthDT"]).sort_values("MonthDT").reset_index(drop=True)
-
-        labels = m["Month"].tolist()
-        season_points = []
-        non_season_points = []
-
-        for i, row in m.iterrows():
-            month_str = row["Month"]
-            total_rentals = float(row.get("TotalRentals", 0) or 0)
-
-            mm = int(month_str.split("-")[1])
-            is_season = 1 if (mm >= 10 or mm <= 3) else 0
-
-            pt = {"x": i, "y": total_rentals, "month": month_str}
-
-            if is_season == 1:
-                season_points.append(pt)
-            else:
-                non_season_points.append(pt)
-
-        return jsonify({
-            "labels": labels,
-            "season": season_points,
-            "non_season": non_season_points
-        }), 200
-
-    except Exception as e:
-        print("Error in /chart/monthly_scatter:", str(e))
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
