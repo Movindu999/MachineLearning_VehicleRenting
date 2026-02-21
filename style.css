@@ -306,22 +306,85 @@ body {
 .prediction-value { font-size: 2.5rem; font-weight: 700; color: var(--color-primary-light); margin-bottom: var(--spacing-md); }
 .prediction-footer { font-size: 0.875rem; color: var(--color-text-tertiary); }
 
-/* Monthly cards */
+/* ✅ IMPROVED MONTHLY PREDICTION CARDS (Bigger outputs + better spacing) */
 .monthly-predictions-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: var(--spacing-lg);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--spacing-lg);
+  align-items: stretch;
 }
-.model-badge {
-    display: inline-block;
-    width: fit-content;
-    padding: 0.35rem 0.85rem;
-    background: rgba(99, 102, 241, 0.2);
-    color: var(--color-primary-light);
-    border-radius: var(--radius-sm);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
+
+.monthly-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  padding: 26px;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-normal);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 200px;
+}
+
+.monthly-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(99, 102, 241, 0.55);
+}
+
+.monthly-card h3 {
+  font-size: 1.25rem;
+  font-weight: 750;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+
+.metric-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 6px;
+  margin-bottom: 8px;
+}
+
+/* ✅ BIG output */
+.metric-big {
+  font-size: 3.2rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--color-primary-light);
+  line-height: 1;
+}
+
+/* ✅ small unit text next to value (ex: rentals) */
+.metric-unit {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+}
+
+.metric-detail {
+  font-size: 0.95rem;
+  color: var(--color-text-secondary);
+  margin-top: auto; /* pushes detail to bottom for consistent card height */
+}
+
+/* ✅ Risk card emphasis */
+#shortage-risk-card .metric-big {
+  color: #fca5a5; /* soft red */
+}
+
+/* ✅ Responsive scaling */
+@media (max-width: 768px) {
+  .monthly-predictions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-big {
+    font-size: 2.6rem;
+  }
 }
 
 /* Forms */
