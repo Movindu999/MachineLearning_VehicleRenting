@@ -167,6 +167,9 @@
                         <div class="prediction-footer">Per vehicle/day</div>
                     </div>
                 </div>
+
+                <!-- ✅ error message box (style.css එකේ status-message classes තියෙනවා නම් පේනවා) -->
+                <div id="daily_error" class="status-message show error" style="display:none; margin-top:14px;"></div>
             </section>
 
             <!-- Monthly Prediction Section -->
@@ -238,6 +241,8 @@
                         <p class="metric-detail">Risk assessment</p>
                     </div>
                 </div>
+
+                <div id="monthly_error" class="status-message show error" style="display:none; margin-top:14px;"></div>
             </section>
 
             <!-- ✅ CHARTS SECTION (BIG LINE CHART) -->
@@ -368,6 +373,41 @@
       const API = "http://127.0.0.1:5000";
       let monthlyLineChart = null;
 
+      // ==============================
+      // ✅ Tuk Tuk FIX helpers
+      // ==============================
+      function normalizeVehicleType(v) {
+        // backend එකට consistent value එකක් යවන්න
+        if (!v) return "All";
+        const s = String(v).trim().toLowerCase();
+        if (s === "tuk tuk" || s === "tuktuk" || s === "tuk-tuk" || s === "tuk_tuk") return "TukTuk";
+        if (s === "bike") return "Bike";
+        if (s === "car") return "Car";
+        if (s === "all") return "All";
+        return v;
+      }
+
+      function prettyVehicle(v) {
+        if (!v) return "--";
+        const s = String(v).trim().toLowerCase();
+        if (s === "tuktuk" || s === "tuk tuk" || s === "tuk-tuk" || s === "tuk_tuk") return "Tuk Tuk";
+        return v;
+      }
+
+      function showError(boxId, msg) {
+        const box = document.getElementById(boxId);
+        if (!box) return;
+        box.textContent = msg;
+        box.style.display = "block";
+      }
+
+      function clearError(boxId) {
+        const box = document.getElementById(boxId);
+        if (!box) return;
+        box.textContent = "";
+        box.style.display = "none";
+      }
+
       async function setBackendStatus() {
         const el = document.getElementById("backend_status");
         try {
@@ -380,9 +420,12 @@
 
       // ✅ ADD DATA
       document.getElementById("btn_save_dataset")?.addEventListener("click", async () => {
+        clearError("daily_error");
+        clearError("monthly_error");
+
         const payload = {
           date: document.getElementById("new_date").value,
-          vehicle_type: document.getElementById("new_vehicle").value,
+          vehicle_type: normalizeVehicleType(document.getElementById("new_vehicle").value),
           customer_type: document.getElementById("new_customer_type").value,
           rental_days: parseInt(document.getElementById("new_days").value),
           daily_price: parseInt(document.getElementById("new_price").value),
@@ -393,63 +436,113 @@
         msg.textContent = "Saving...";
         msg.className = "status-message show info";
 
-        const r = await fetch(`${API}/add_rental`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
+        try {
+          const r = await fetch(`${API}/add_rental`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
 
-        const d = await r.json();
-        if (d.message) {
-          msg.textContent = `✅ Saved (ID: ${d.rental_id ?? "-"})`;
-          msg.className = "status-message show success";
-        } else {
-          msg.textContent = `❌ ${d.error || "Save failed"}`;
+          const d = await r.json();
+          if (r.ok && d.message) {
+            msg.textContent = `✅ Saved (ID: ${d.rental_id ?? "-"})`;
+            msg.className = "status-message show success";
+          } else {
+            msg.textContent = `❌ ${d.error || "Save failed"}`;
+            msg.className = "status-message show error";
+          }
+
+          // refresh metrics + chart after new data
+          loadModelMetrics();
+          loadMonthlyLineChart();
+
+        } catch (e) {
+          msg.textContent = `❌ Save failed: ${e.message}`;
           msg.className = "status-message show error";
         }
-
-        // refresh metrics + chart after new data
-        loadModelMetrics();
-        loadMonthlyLineChart();
       });
 
-      // ✅ DAILY PREDICT
+      // ✅ DAILY PREDICT (✅ FIXED for Tuk Tuk + error handling + flexible keys)
       document.getElementById("btn_predict_day")?.addEventListener("click", async () => {
+        clearError("daily_error");
+
+        const dateVal = document.getElementById("filter_date").value;
+        const vehicleVal = document.getElementById("filter_vehicle_type").value;
+
+        if (!dateVal) {
+          showError("daily_error", "⚠️ Please select a date first.");
+          return;
+        }
+
         const payload = {
-          date: document.getElementById("filter_date").value,
-          vehicle_type: document.getElementById("filter_vehicle_type").value || "All"
+          date: dateVal,
+          vehicle_type: normalizeVehicleType(vehicleVal)
         };
 
-        const r = await fetch(`${API}/predict/daily`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
+        try {
+          const r = await fetch(`${API}/predict/daily`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
 
-        const d = await r.json();
-        document.getElementById("daily_pred_demand").textContent = d.tomorrow_demand ?? "--";
-        document.getElementById("daily_pred_count").textContent = d.predicted_count ?? "--";
-        document.getElementById("daily_pred_price").textContent = d.recommended_price ?? "--";
-        document.getElementById("daily_conf").textContent = d.confidence ? `${d.confidence}%` : "--";
+          const d = await r.json();
+
+          if (!r.ok) {
+            showError("daily_error", `❌ ${d.error || "Daily prediction failed"}`);
+            return;
+          }
+
+          const demand = d.predicted_demand ?? d.tomorrow_demand ?? d.demand ?? "--";
+          const count  = d.predicted_count ?? d.rentals ?? d.pred_count ?? "--";
+          const price  = d.recommended_price ?? d.price ?? d.recommended_daily_price ?? "--";
+          const conf   = (d.confidence !== undefined && d.confidence !== null) ? `${d.confidence}%` : "--";
+
+          document.getElementById("daily_pred_demand").textContent = demand;
+          document.getElementById("daily_pred_count").textContent = count;
+          document.getElementById("daily_pred_price").textContent = price;
+          document.getElementById("daily_conf").textContent = conf;
+
+        } catch (e) {
+          showError("daily_error", `❌ Daily prediction error: ${e.message}`);
+        }
       });
 
-      // ✅ MONTHLY PREDICT
+      // ✅ MONTHLY PREDICT (only small display fix: pretty Tuk Tuk)
       document.getElementById("btn_predict_month")?.addEventListener("click", async () => {
+        clearError("monthly_error");
+
         const monthVal = document.getElementById("filter_month").value;
+        if (!monthVal) {
+          showError("monthly_error", "⚠️ Please select a month first.");
+          return;
+        }
+
         const payload = { month: monthVal };
 
-        const r = await fetch(`${API}/predict/monthly`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
+        try {
+          const r = await fetch(`${API}/predict/monthly`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
 
-        const d = await r.json();
-        document.getElementById("pred_revenue").textContent = d.pred_revenue ?? "--";
-        document.getElementById("pred_demand").textContent = d.pred_demand ?? "--";
-        document.getElementById("pred_rental_count").textContent = d.pred_rental_count ?? "--";
-        document.getElementById("pred_vehicle_type").textContent = d.pred_vehicle_type ?? "--";
-        document.getElementById("pred_shortage").textContent = d.pred_risk ?? "--";
+          const d = await r.json();
+
+          if (!r.ok) {
+            showError("monthly_error", `❌ ${d.error || "Monthly prediction failed"}`);
+            return;
+          }
+
+          document.getElementById("pred_revenue").textContent = d.pred_revenue ?? "--";
+          document.getElementById("pred_demand").textContent = d.pred_demand ?? "--";
+          document.getElementById("pred_rental_count").textContent = d.pred_rental_count ?? "--";
+          document.getElementById("pred_vehicle_type").textContent = prettyVehicle(d.pred_vehicle_type ?? "--");
+          document.getElementById("pred_shortage").textContent = d.pred_risk ?? "--";
+
+        } catch (e) {
+          showError("monthly_error", `❌ Monthly prediction error: ${e.message}`);
+        }
       });
 
       // ✅ LOAD MODEL METRICS INTO TABLE
@@ -548,14 +641,6 @@
               plugins: {
                 legend: {
                   labels: { color: "#cbd5e1", font: { size: 14 } }
-                },
-                tooltip: {
-                  callbacks: {
-                    label: (context) => {
-                      const val = context.raw;
-                      return val === null ? "" : `${context.dataset.label}: ${val} rentals`;
-                    }
-                  }
                 }
               },
               scales: {
