@@ -78,39 +78,55 @@
             <!-- Dashboard Overview Section -->
             <section id="overview" class="content-section">
                 <div class="section-header">
-                    <h2>📊 Dashboard Overview</h2>
+                    <!-- ✅ MOD: Header row with live date/time -->
+                    <div class="overview-header-row">
+                        <h2>📊 Dashboard Overview</h2>
+
+                        <div class="live-datetime">
+                            <span id="liveDate">--</span>
+                            <span class="dot">•</span>
+                            <span id="liveTime">--</span>
+                        </div>
+                    </div>
+
                     <p class="section-subtitle">Real-time vehicle rental statistics and insights</p>
                 </div>
 
                 <div class="kpi-grid">
+                    <!-- ✅ MOD: Today's Rentals -> add per-vehicle counts -->
                     <div class="kpi-card gradient-blue">
                         <div class="kpi-icon">🚙</div>
                         <div class="kpi-content">
                             <p class="kpi-label">Today's Rentals</p>
                             <p class="kpi-value" id="kpi_today_rentals">--</p>
+
+                            <!-- ✅ NEW -->
+                            <div class="kpi-breakdown">
+                                <span>Bike: <b id="kpi_today_bike">--</b></span>
+                                <span>Car: <b id="kpi_today_car">--</b></span>
+                                <span>Tuk Tuk: <b id="kpi_today_tuktuk">--</b></span>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- ✅ MOD: This Month Rentals -> add per-vehicle counts -->
                     <div class="kpi-card gradient-purple">
                         <div class="kpi-icon">📊</div>
                         <div class="kpi-content">
                             <p class="kpi-label">This Month Rentals</p>
                             <p class="kpi-value" id="kpi_month_rentals">--</p>
+
+                            <!-- ✅ NEW -->
+                            <div class="kpi-breakdown">
+                                <span>Bike: <b id="kpi_month_bike">--</b></span>
+                                <span>Car: <b id="kpi_month_car">--</b></span>
+                                <span>Tuk Tuk: <b id="kpi_month_tuktuk">--</b></span>
+                            </div>
                         </div>
                     </div>
-                    <div class="kpi-card gradient-green">
-                        <div class="kpi-icon">🔄</div>
-                        <div class="kpi-content">
-                            <p class="kpi-label">Active Vehicles</p>
-                            <p class="kpi-value" id="kpi_active_vehicles">-- <span class="kpi-small">(-- -- --)</span></p>
-                        </div>
-                    </div>
-                    <div class="kpi-card gradient-orange">
-                        <div class="kpi-icon">🌤️</div>
-                        <div class="kpi-content">
-                            <p class="kpi-label">Peak Season</p>
-                            <p class="kpi-value" id="kpi_peak">--</p>
-                        </div>
-                    </div>
+
+                    <!-- ❌ MOD: Active Vehicles removed -->
+                    <!-- ❌ MOD: Peak Season removed -->
                 </div>
 
                 <div class="quick-actions-panel">
@@ -377,7 +393,6 @@
       // ✅ Tuk Tuk FIX helpers
       // ==============================
       function normalizeVehicleType(v) {
-        
         if (!v) return "All";
         const s = String(v).trim().toLowerCase();
         if (s === "tuk tuk" || s === "tuktuk" || s === "tuk-tuk" || s === "tuk_tuk") return "TukTuk";
@@ -418,6 +433,46 @@
         }
       }
 
+      // ==============================
+      // ✅ NEW: Live Date & Time
+      // ==============================
+      function updateLiveDateTime() {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+        const timeStr = now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+        const dEl = document.getElementById("liveDate");
+        const tEl = document.getElementById("liveTime");
+        if (dEl) dEl.textContent = dateStr;
+        if (tEl) tEl.textContent = timeStr;
+      }
+
+      // ==============================
+      // ✅ NEW: Load KPI Summary (Today + Month + each vehicle count)
+      // ==============================
+      async function loadKpiSummary() {
+        try {
+          const r = await fetch(`${API}/stats/summary`);
+          const d = await r.json();
+          if (!r.ok) return;
+
+          // today totals
+          document.getElementById("kpi_today_rentals").textContent = d.today?.total ?? 0;
+          document.getElementById("kpi_today_bike").textContent = d.today?.by_type?.Bike ?? 0;
+          document.getElementById("kpi_today_car").textContent = d.today?.by_type?.Car ?? 0;
+          document.getElementById("kpi_today_tuktuk").textContent = d.today?.by_type?.["Tuk Tuk"] ?? 0;
+
+          // month totals
+          document.getElementById("kpi_month_rentals").textContent = d.month?.total ?? 0;
+          document.getElementById("kpi_month_bike").textContent = d.month?.by_type?.Bike ?? 0;
+          document.getElementById("kpi_month_car").textContent = d.month?.by_type?.Car ?? 0;
+          document.getElementById("kpi_month_tuktuk").textContent = d.month?.by_type?.["Tuk Tuk"] ?? 0;
+
+        } catch (e) {
+          console.log("KPI summary load error:", e);
+        }
+      }
+
       // ✅ ADD DATA
       document.getElementById("btn_save_dataset")?.addEventListener("click", async () => {
         clearError("daily_error");
@@ -452,9 +507,10 @@
             msg.className = "status-message show error";
           }
 
-          // refresh metrics + chart after new data
+          // refresh metrics + chart + KPI after new data
           loadModelMetrics();
           loadMonthlyLineChart();
+          loadKpiSummary();
 
         } catch (e) {
           msg.textContent = `❌ Save failed: ${e.message}`;
@@ -668,6 +724,12 @@
       setBackendStatus();
       loadModelMetrics();
       loadMonthlyLineChart();
+
+      // ✅ NEW run on load: datetime + KPI summary
+      updateLiveDateTime();
+      setInterval(updateLiveDateTime, 1000);
+      loadKpiSummary();
+      setInterval(loadKpiSummary, 10000); // refresh every 10s
     </script>
 </body>
 </html>

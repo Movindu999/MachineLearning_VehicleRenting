@@ -198,6 +198,35 @@ body {
 .section-header h2 { font-size: 2rem; font-weight: 700; margin-bottom: var(--spacing-sm); }
 .section-subtitle { color: var(--color-text-secondary); }
 
+/* ============================================================
+   ✅ NEW: Dashboard Overview header row + Live DateTime
+   (ONLY added - structure not changed)
+   ============================================================ */
+.overview-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.live-datetime {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 14px;
+    border-radius: var(--radius-xl);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: var(--color-text-primary);
+    font-size: 0.9rem;
+    backdrop-filter: blur(10px);
+}
+
+.live-datetime .dot {
+    margin: 0 8px;
+    opacity: 0.8;
+}
+
 /* KPI + cards */
 .kpi-grid {
     display: grid;
@@ -232,6 +261,21 @@ body {
 .kpi-card.gradient-purple { background: linear-gradient(135deg, rgba(168,85,247,0.1), rgba(99,102,241,0.05)); }
 .kpi-card.gradient-green { background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(99,102,241,0.05)); }
 .kpi-card.gradient-orange { background: linear-gradient(135deg, rgba(249,115,22,0.1), rgba(99,102,241,0.05)); }
+
+/* ============================================================
+   ✅ NEW: KPI breakdown lines (Bike/Car/Tuk Tuk)
+   ============================================================ */
+.kpi-breakdown {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
+}
+.kpi-breakdown b {
+    color: var(--color-text-primary);
+}
 
 /* Quick actions */
 .quick-actions-panel {

@@ -41,6 +41,55 @@ def health():
     return jsonify({"status": "ok"}), 200
 
 
+# ✅ NEW: KPI Summary (Today + This month + per vehicle counts)
+@app.route("/stats/summary", methods=["GET"])
+def stats_summary():
+    try:
+        transactions, _, _ = load_csvs()
+        if transactions is None or transactions.empty:
+            return jsonify({
+                "today": {"total": 0, "by_type": {"Bike": 0, "Car": 0, "Tuk Tuk": 0}},
+                "month": {"total": 0, "by_type": {"Bike": 0, "Car": 0, "Tuk Tuk": 0}},
+            }), 200
+
+        # ensure Date is datetime
+        transactions = transactions.copy()
+        transactions["Date"] = pd.to_datetime(transactions["Date"], errors="coerce")
+        transactions = transactions.dropna(subset=["Date"])
+
+        today = pd.Timestamp.now().normalize()
+        year = today.year
+        month = today.month
+
+        # TODAY
+        tdf = transactions[transactions["Date"].dt.normalize() == today]
+        today_total = int(len(tdf))
+        today_by_type = tdf["VehicleType"].value_counts().to_dict()
+
+        # MONTH
+        mdf = transactions[(transactions["Date"].dt.year == year) & (transactions["Date"].dt.month == month)]
+        month_total = int(len(mdf))
+        month_by_type = mdf["VehicleType"].value_counts().to_dict()
+
+        # ensure keys exist
+        def _fill(d):
+            return {
+                "Bike": int(d.get("Bike", 0)),
+                "Car": int(d.get("Car", 0)),
+                "Tuk Tuk": int(d.get("Tuk Tuk", 0)),
+            }
+
+        return jsonify({
+            "today": {"total": today_total, "by_type": _fill(today_by_type)},
+            "month": {"total": month_total, "by_type": _fill(month_by_type)},
+        }), 200
+
+    except Exception as e:
+        print("Error in /stats/summary:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
 # ✅ Return Monthly dataset for chart
 @app.route("/data/monthly", methods=["GET"])
 def get_monthly_data():
