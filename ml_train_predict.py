@@ -74,7 +74,7 @@ def build_daily_from_transactions(transactions: pd.DataFrame, vehicle_type: str)
 
 
 # ============================================================
-# 1) MULTIPLE LINEAR REGRESSION (Monthly Revenue)  ✅ lecture style
+# 1) MULTIPLE LINEAR REGRESSION (Monthly Revenue)  
 # ============================================================
 def train_linear_regression_revenue():
     _, _, monthly = load_csvs()
@@ -102,8 +102,7 @@ def train_linear_regression_revenue():
 
 
 # ============================================================
-# 2) LOGISTIC REGRESSION (Demand High/Low) ✅ lecture style
-# - with StandardScaler (like your notebooks)
+# 2) LOGISTIC REGRESSION (Demand High/Low) 
 # ============================================================
 def train_logistic_regression_demand(vehicle_type="All"):
     transactions, daily_all, _ = load_csvs()
@@ -143,7 +142,7 @@ def train_logistic_regression_demand(vehicle_type="All"):
 
 
 # ============================================================
-# 3) KNN REGRESSION (Daily Rentals Count) ✅ lecture style
+# 3) KNN REGRESSION (Daily Rentals Count) 
 # ============================================================
 def train_knn_regressor_rentals(vehicle_type="All"):
     transactions, daily_all, _ = load_csvs()
@@ -176,7 +175,7 @@ def train_knn_regressor_rentals(vehicle_type="All"):
 
 
 # ============================================================
-# 4) SVM CLASSIFIER (Vehicle Type) ✅ lecture style
+# 4) SVM CLASSIFIER (Vehicle Type) 
 # ============================================================
 def train_svm_classifier_vehicle_type():
     transactions, _, _ = load_csvs()
@@ -212,7 +211,7 @@ def train_svm_classifier_vehicle_type():
 
 
 # ============================================================
-# 5) DECISION TREE CLASSIFICATION (Risk High/Low) ✅ lecture style
+# 5) DECISION TREE CLASSIFICATION (Risk High/Low) 
 # ============================================================
 def train_decision_tree_risk():
     _, daily, _ = load_csvs()
@@ -422,7 +421,7 @@ def predict_monthly(month_str: str):
     else:
         pred_rental_count = "--"
 
-    # ✅ Vehicle Type Recommendation (NO “always Tuk Tuk” issue)
+    # ✅ Vehicle Type Recommendation 
     # Use KNN per-type predicted month rentals and pick best
     per_type_preds = {}
     is_weekend_avg = weekend_days / max(len(days), 1)
